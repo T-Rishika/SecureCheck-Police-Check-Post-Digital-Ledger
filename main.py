@@ -115,7 +115,7 @@ query_map = {
      "Are stops during the night more likely to lead to arrests?":"""SELECT time, ROUND(SUM(CASE WHEN is_arrested = 1 THEN 1 ELSE 0 END) * 100 / COUNT(*), 2 ) as arrests
                                                                       from(
                                                                            SELECT CASE 
-                                                                                WHEN HOUR(stop_time) >22 AND HOUR(stop_time)<=5 THEN 'night_time'
+                                                                                WHEN HOUR(stop_time) <5 AND HOUR(stop_time)>22 THEN 'night_time'
                                                                                 WHEN HOUR(stop_time) > 5 AND HOUR(stop_time)<=22  THEN 'day_time'
                                                                                 END AS time,is_arrested FROM check_post_logs
                                                                            ) AS time_grouped_data
@@ -234,6 +234,76 @@ def drug(drug_related):
      if drug_related == 1:
           return " "
      else:
-          return "No"
+          return "Not"
 st.write("A",driver_age,"-Year-old",driver_gender,"driver was stopped for ",predicted_outcome2,"at",time,".",search(search_conducted),
          "Search was conducted,and he received a",predicted_outcome1,"The stop lasted",stop_duration,"and was",drug(drug_related),"drug related")
+
+
+st.subheader("Complex")
+selected_query = st.selectbox("Complex",["Yearly Breakdown of Stops and Arrests by Country",
+                                         "Driver Violation Trends Based on Age and Race",
+                                         "Time Period Analysis of Stops",
+                                         "Violations with High Search and Arrest Rates",
+                                         "Driver Demographics by Country (Age, Gender, and Race)",
+                                         "Top 5 Violations with Highest Arrest Rates"])
+query_map = {"Yearly Breakdown of Stops and Arrests by Country": """Select country_name, count(*) as Toatal_stops,
+                                                                                          sum(CASE WHEN stop_outcome ='Arrest' THEN 1 ELSE 0 END) AS Total_Arrests, 
+                                                                                          YEAR(stop_date) as _Year 
+                                                                                          from check_post_logs
+                                                                                          group by country_name,_Year""",
+               "Driver Violation Trends Based on Age and Race":"""SELECT violation,age_group,driver_race, count(*) as count from
+                                                                                     (SELECT violation,driver_race, CASE 
+                                                                                     WHEN driver_age BETWEEN 18 AND 20 THEN '18-20'
+                                                                                     WHEN driver_age BETWEEN 21 AND 30 THEN '21-30'
+                                                                                     WHEN driver_age BETWEEN 31 AND 40 THEN '31-40'
+                                                                                     WHEN driver_age BETWEEN 41 AND 50 THEN '41-50'
+                                                                                     WHEN driver_age BETWEEN 51 AND 60 THEN '51-60'
+                                                                                     WHEN driver_age BETWEEN 61 AND 70 THEN '61-70'
+                                                                                     ELSE '70+'
+                                                                                     END AS age_group
+                                                                                     FROM check_post_logs
+                                                                                     ) AS age_grouped_data
+                                                                                     group by violation,driver_race,age_group
+                                                                                     order by count desc""",
+               "Time Period Analysis of Stops": """Select year(stop_date) as _year, month(stop_date) as _month,
+                                                                                                    hour(stop_time) as Hour_of_day,
+                                                                                                    count(*) as stops from check_post_logs
+                                                                                                    group by year(stop_date),
+                                                                                                    month(stop_date),
+                                                                                                    hour(stop_time)
+                                                                                                    """,
+               "Violations with High Search and Arrest Rates":""" select violation, ROUND(SUM(CASE WHEN search_conducted = 1 THEN 1 ELSE 0 END)*100/ COUNT(*), 2) AS Search_Rate, 
+                                                                                    ROUND(SUM(CASE WHEN is_arrested = 1 THEN 1 ELSE 0 END)*100/ COUNT(*), 2) AS Arrest_Rate
+                                                                                    from check_post_logs
+                                                                                    GROUP BY violation
+                                                                                    order by Search_Rate DESC,Arrest_Rate DESC""",
+               "Driver Demographics by Country (Age, Gender, and Race)": """SELECT country_name,age_group,driver_race, count(*) from
+                                                                                                    (SELECT country_name,driver_race, CASE 
+                                                                                                         WHEN driver_age BETWEEN 18 AND 20 THEN '18-20'
+                                                                                                         WHEN driver_age BETWEEN 21 AND 30 THEN '21-30'
+                                                                                                         WHEN driver_age BETWEEN 31 AND 40 THEN '31-40'
+                                                                                                         WHEN driver_age BETWEEN 41 AND 50 THEN '41-50'
+                                                                                                         WHEN driver_age BETWEEN 51 AND 60 THEN '51-60'
+                                                                                                         WHEN driver_age BETWEEN 61 AND 70 THEN '61-70'
+                                                                                                         ELSE '70+'
+                                                                                                         END AS age_group
+                                                                                                    FROM check_post_logs
+                                                                                                    ) AS age_grouped_data
+                                                                                                    group by country_name,driver_race,age_group
+                                                                                                    order by country_name,driver_race,age_group""",
+                "Top 5 Violations with Highest Arrest Rates":"""select violation,
+                                                                      ROUND(SUM(CASE WHEN is_arrested = 1 THEN 1 ELSE 0 END)*100/ COUNT(*), 2) AS Arrest_Rate
+                                                                      from check_post_logs
+                                                                      GROUP BY violation
+                                                                      order by Arrest_Rate DESC"""}
+
+if st.button("run query", key='complex'):
+     result = fetch_data(query_map[selected_query])
+     if not result.empty:
+          st.write(result)
+     else:
+          st.warning("no results")
+
+
+
+
